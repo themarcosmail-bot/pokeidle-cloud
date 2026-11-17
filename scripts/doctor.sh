@@ -36,16 +36,17 @@ for id in "${sessions[@]}"; do
 
     if uid=$(getent passwd "$session_user" | cut -d: -f3) && [[ $uid =~ ^[0-9]+$ ]]; then
         pid_file="/run/user/$uid/pokeidle-cloud/chromium.pid"
-        if pid=$(timeout 2s runuser -u "$session_user" -- sh -c '[ -f "$1" ] && [ ! -L "$1" ] && cat "$1"' sh "$pid_file" 2>/dev/null) &&
-           [[ $pid =~ ^[1-9][0-9]*$ ]] &&
-           [[ $(stat -c %u "/proc/$pid" 2>/dev/null) == "$uid" ]] &&
-           kill -0 "$pid" 2>/dev/null; then
-            printf '  Chromium: processo vivo (PID %s)\n' "$pid"
-            continue
+        profile="$session_home/snap/chromium/common/pokeidle-profile"
+        if health=$(/usr/local/lib/pokeidle-cloud/chromium-health.sh             "$session_user" "$pid_file" "$profile" 2>&1); then
+            printf '  Chromium: %s\n' "$health"
+        else
+            printf '  Chromium: ausente, inválido ou em reinicialização (%s)\n' "$health"
+            failed=1
         fi
+    else
+        printf '  Chromium: usuário da sessão indisponível\n'
+        failed=1
     fi
-    printf '  Chromium: ausente ou em reinicialização\n'
-    failed=1
 done
 
 printf '\nTailscale\n'
