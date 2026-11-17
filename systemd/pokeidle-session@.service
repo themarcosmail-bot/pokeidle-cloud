@@ -1,0 +1,21 @@
+[Unit]
+Description=PokeIdle Cloud - sessão gráfica %i
+Wants=network-online.target snapd.seeded.service
+After=network-online.target snapd.seeded.service systemd-user-sessions.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=pokeidle-%i
+Group=pokeidle-%i
+WorkingDirectory=/home/pokeidle-%i
+UMask=0077
+ExecStart=/usr/local/lib/pokeidle-cloud/session.sh %i
+Restart=on-failure
+RestartSec=15
+KillMode=mixed
+TimeoutStopSec=45
+
+[Install]
+WantedBy=multi-user.target

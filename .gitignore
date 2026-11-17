@@ -1,0 +1,16 @@
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.ppk
+id_ed25519*
+id_rsa*
+pokeidle_oci
+passwd
+.Xauthority*
+.vnc/
+snap/
+pokeidle-profile/
+*.log
+__pycache__/
