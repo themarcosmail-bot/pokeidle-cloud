@@ -1,0 +1,42 @@
+name: Validation
+
+on:
+  push:
+    branches:
+      - 'ci/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Ubuntu validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Bash syntax
+        shell: bash
+        run: bash tests/validate.sh bash
+
+      - name: systemd units
+        shell: bash
+        run: bash tests/validate.sh systemd
+
+      - name: Python regression suite
+        shell: bash
+        run: bash tests/validate.sh python
+
+      - name: Basic security checks
+        shell: bash
+        run: bash tests/security.sh
