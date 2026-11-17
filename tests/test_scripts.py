@@ -1,5 +1,6 @@
 import json
 import os
+import pwd
 from pathlib import Path
 import signal
 import subprocess
@@ -69,6 +70,7 @@ class ScriptTests(unittest.TestCase):
         self.root = Path(directory.name)
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
+        self.bin_dir = bin_dir
         mock = bin_dir / "mock"
         mock.write_text(MOCK.lstrip())
         mock.chmod(0o755)
@@ -81,10 +83,16 @@ class ScriptTests(unittest.TestCase):
         common = (SCRIPTS / "common.sh").read_text()
         # Os comandos administrativos usam mocks e executam como usuário local.
         (self.root / "common.sh").write_text(common + "\nrequire_root() { :; }\n")
+        health = (SCRIPTS / "chromium-health.sh").read_text()
+        (self.root / "chromium-health.sh").write_text(health)
         for script in ("access", "doctor", "recover"):
             content = (SCRIPTS / f"{script}.sh").read_text()
             content = content.replace(
                 "/usr/local/lib/pokeidle-cloud/common.sh", f'"{self.root}/common.sh"'
+            )
+            content = content.replace(
+                "/usr/local/lib/pokeidle-cloud/chromium-health.sh",
+                f'"{self.root}/chromium-health.sh"',
             )
             (self.root / f"{script}.sh").write_text(content)
 
@@ -115,6 +123,19 @@ class ScriptTests(unittest.TestCase):
     def log(self, command):
         path = self.root / f"{command}.log"
         return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def run_health(self, pid_file, profile):
+        user = pwd.getpwuid(os.getuid()).pw_name
+        return subprocess.run(
+            [
+                "bash",
+                str(self.root / "chromium-health.sh"),
+                user,
+                str(pid_file),
+                str(profile),
+            ],
+            env=self.env(), text=True, capture_output=True, timeout=6,
+        )
 
     def wait_for(self, predicate):
         deadline = time.monotonic() + 6
@@ -240,6 +261,62 @@ class ScriptTests(unittest.TestCase):
         self.assertIn(["1", "restart", "pokeidle-session@2.service"], self.log("systemctl"))
         self.assertIn("VNC local da sessão 2 disponível", result.stdout)
         self.assertEqual(self.run_script("recover", "3").returncode, 1)
+
+    def test_chromium_health_accepts_expected_process(self):
+        profile = self.root / "health-profile"
+        profile.mkdir()
+        process = subprocess.Popen(
+            [str(self.bin_dir / "chromium"), f"--user-data-dir={profile}"],
+            env=self.env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        self.addCleanup(self.stop_process, process)
+        self.wait_for(lambda: process.poll() is None)
+
+        pid_file = self.root / "health.pid"
+        pid_file.write_text(f"{process.pid}\\n")
+        pid_file.chmod(0o600)
+
+        result = self.run_health(pid_file, profile)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("processo íntegro", result.stdout)
+
+    def test_chromium_health_rejects_symlink_pid_file(self):
+        target = self.root / "real.pid"
+        target.write_text(f"{os.getpid()}\\n")
+        target.chmod(0o600)
+        link = self.root / "linked.pid"
+        link.symlink_to(target)
+
+        result = self.run_health(link, self.root / "unused-profile")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("simbólico", result.stderr)
+
+    def test_chromium_health_rejects_invalid_pid(self):
+        pid_file = self.root / "invalid.pid"
+        pid_file.write_text("not-a-pid\\n")
+        pid_file.chmod(0o600)
+
+        result = self.run_health(pid_file, self.root / "unused-profile")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("PID inválido", result.stderr)
+
+    def test_chromium_health_rejects_unexpected_profile(self):
+        actual_profile = self.root / "actual-profile"
+        actual_profile.mkdir()
+        process = subprocess.Popen(
+            [str(self.bin_dir / "chromium"), f"--user-data-dir={actual_profile}"],
+            env=self.env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        self.addCleanup(self.stop_process, process)
+        self.wait_for(lambda: process.poll() is None)
+
+        pid_file = self.root / "wrong-profile.pid"
+        pid_file.write_text(f"{process.pid}\\n")
+        pid_file.chmod(0o600)
+
+        result = self.run_health(pid_file, self.root / "expected-profile")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("perfil esperado", result.stderr)
 
     def test_doctor_reports_missing_forward(self):
         (self.root / "serve.json").write_text(
