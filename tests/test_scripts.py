@@ -273,7 +273,7 @@ class ScriptTests(unittest.TestCase):
         self.wait_for(lambda: process.poll() is None)
 
         pid_file = self.root / "health.pid"
-        pid_file.write_text(f"{process.pid}\\n")
+        pid_file.write_text(f"{process.pid}\n")
         pid_file.chmod(0o600)
 
         result = self.run_health(pid_file, profile)
@@ -282,7 +282,7 @@ class ScriptTests(unittest.TestCase):
 
     def test_chromium_health_rejects_symlink_pid_file(self):
         target = self.root / "real.pid"
-        target.write_text(f"{os.getpid()}\\n")
+        target.write_text(f"{os.getpid()}\n")
         target.chmod(0o600)
         link = self.root / "linked.pid"
         link.symlink_to(target)
@@ -293,7 +293,7 @@ class ScriptTests(unittest.TestCase):
 
     def test_chromium_health_rejects_invalid_pid(self):
         pid_file = self.root / "invalid.pid"
-        pid_file.write_text("not-a-pid\\n")
+        pid_file.write_text("not-a-pid\n")
         pid_file.chmod(0o600)
 
         result = self.run_health(pid_file, self.root / "unused-profile")
@@ -311,7 +311,7 @@ class ScriptTests(unittest.TestCase):
         self.wait_for(lambda: process.poll() is None)
 
         pid_file = self.root / "wrong-profile.pid"
-        pid_file.write_text(f"{process.pid}\\n")
+        pid_file.write_text(f"{process.pid}\n")
         pid_file.chmod(0o600)
 
         result = self.run_health(pid_file, self.root / "expected-profile")
