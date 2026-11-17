@@ -90,6 +90,7 @@ prepare_user pokeidle-2
 install -d -m 0755 /usr/local/lib/pokeidle-cloud /usr/local/sbin
 install -m 0644 "$project_dir/scripts/common.sh" /usr/local/lib/pokeidle-cloud/
 install -m 0755 "$project_dir/scripts/session.sh" /usr/local/lib/pokeidle-cloud/
+install -m 0755 "$project_dir/scripts/chromium-health.sh" /usr/local/lib/pokeidle-cloud/
 for name in access doctor recover; do
     install -m 0755 "$project_dir/scripts/$name.sh" "/usr/local/sbin/pokeidle-$name"
 done
